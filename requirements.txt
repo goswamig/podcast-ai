@@ -1,0 +1,7 @@
+openai
+requests
+pydub
+pandas
+numpy
+tqdm
+
