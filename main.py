@@ -16,6 +16,11 @@ args = parser.parse_args()
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Summarize the podcast
-summary = summarize_podcast(args.transcript, args.summary_fraction)
-print("Summary:", summary)
+#summary = summarize_podcast(args.transcript, args.summary_fraction)
+#print("Summary:", summary)
+#
+# Call the answer_question function with the specified question
+question = "Which all company George has?"
+answer = answer_question(summary, question)
+print(f"Answer to '{question}': {answer}")
 
