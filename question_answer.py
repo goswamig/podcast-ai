@@ -52,35 +52,16 @@ embeds = [record['embedding'] for record in res['data']]
 pinecone.init(api_key=os.getenv("PINECONE_API_KEY"), environment=os.getenv("PINECONE_ENVIRONMENT"))
 
 index_name="my-podcast-index"
-# check if 'openai' index already exists (only create index if not)
+# check if index already exists (only create index if not)
 if index_name not in pinecone.list_indexes():
     pinecone.create_index(index_name, dimension=len(embeds[0]))
 
 index = pinecone.Index(index_name=index_name)
 
-ids_batch = [str(n) for n in range(len(chunks)]
+ids_batch = [str(n) for n in range(len(chunks))]
 meta = [{'text': line} for line in chunks]
 to_upsert = zip(ids_batch, embeds, meta)
 index.upsert(vectors=list(to_upsert))
-##Lets get all embedding in one shot 
-#chunk_list = []
-#for i in range(len(chunks)):
-#  chunk_list.append(chunks[i])
-#
-## Create embeddings for each chunk and store them in Pinecone
-#res = openai.Embedding.create(input=chunk_list, engine="text-embedding-ada-002")
-
-#for i, chunk in enumerate(chunks):
-#    res = openai.Embedding.create(
-#        input=[chunk],
-#        engine="text-embedding-ada-002"
-#    )
-#    print(type(res['data'][0]['embedding']))
-#    #vector = pinecone.Vector(res['data'][0]['embedding'], id=f"podcast_chunk_{i}")
-#    #vector = pinecone.Vector(res['data'][0]['embedding'], values=True)
-#    vectors = {f"podcast_chunk_{i}": res['data'][0]['embedding'] }
-#    index.upsert(vectors=vectors)
-#    break
 
 def answer_question(question):
     # Create an embedding for the question
@@ -90,7 +71,7 @@ def answer_question(question):
     )
 
     # Retrieve the most similar embeddings from Pinecone
-    res = index.query([res['data'][0]['embedding'], top_k=1, include_metadata=True)
+    res = index.query([res['data'][0]['embedding']], top_k=1, include_metadata=True)
     
     # Construct the prompt for the generative model
     prompt = f"Context: {res['matches'][0]['id']}\nQuestion: {question}\nAnswer:"
@@ -105,6 +86,17 @@ def answer_question(question):
 
     return res['choices'][0]['text'].strip()
 
-# Example usage
-print(answer_question("What are the main topics of the podcast?"))
 
+while True:
+    try:
+        user_query = input("Enter your query (or type 'quit' to exit): ")
+        if user_query.lower() == 'quit':
+            print("Exiting...")
+            break
+        
+        answer = answer_question(user_query)
+        print("Answer:", answer)
+        
+    except KeyboardInterrupt:
+        print("\nExiting...")
+        break
