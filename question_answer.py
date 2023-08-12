@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 MAX_TOKENS_PER_CHUNK = 2048
+limit = 3750
 
 # Initialize APIs and keys
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -82,17 +83,68 @@ def load_embeddings_from_storage():
     # Implement your logic here to load and return embeddings from storage
     return [], []
 
-def get_answer_from_generative_model(question, index):
-    res = openai.Embedding.create(input=[question], engine="text-embedding-ada-002")
-    res = index.query([res['data'][0]['embedding']], top_k=1, include_metadata=True)
-    prompt = f"Context: {res['matches'][0]['id']}\nQuestion: {question}\nAnswer:"
+def get_answer_from_generative_model(query, index):
+    query_with_contexts = retrieve(query, index)
+    return complete(query_with_contexts)
+
+
+
+def retrieve(query, index):
+    res = openai.Embedding.create(
+        input=[query],
+        engine="text-embedding-ada-002"
+    )
+
+    # retrieve from Pinecone
+    xq = res['data'][0]['embedding']
+
+    # Todo use more than one context
+    # get relevant contexts
+    res = index.query(xq, top_k=1, include_metadata=True)
+    contexts = [
+        x['metadata']['text'] for x in res['matches']
+    ]
+    # build our prompt with the retrieved contexts included
+    prompt_start = (
+        "Answer the question based on the context below.\n\n"+
+        "Context:\n"
+    )
+    prompt_end = (
+        f"\n\nQuestion: {query}\nAnswer:"
+    )
+
+    # append contexts until hitting limit
+    for i in range(len(contexts)):
+        if len("\n\n---\n\n".join(contexts[:i])) >= limit:
+            prompt = (
+                prompt_start +
+                "\n\n---\n\n".join(contexts[:i-1]) +
+                prompt_end
+            )
+            break
+        elif i == len(contexts)-1:
+            prompt = (
+                prompt_start +
+                "\n\n---\n\n".join(contexts) +
+                prompt_end
+            )
+    return prompt
+
+
+def complete(prompt):
+    # query text-davinci-003
     res = openai.Completion.create(
-        engine="text-davinci-003",
+        engine='text-davinci-003',
         prompt=prompt,
         temperature=0,
-        max_tokens=60,
+        max_tokens=400,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stop=None
     )
     return res['choices'][0]['text'].strip()
+
 
 # Main execution
 def main():
