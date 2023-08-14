@@ -8,9 +8,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+"""
+openai.Completion.create with `text-davinci-003` can have total 4096 tokens.
+My output of the above call has 400 tokens, so total prompt limit is 3696.
+Out of which I have ~100 tokens for start/end of prompt. Hence max chunks 
+can be approx 4096 - 400 - 100i = 3596. To keep margin I will keep it 3500
+"""
 # Constants
-MAX_TOKENS_PER_CHUNK = 2048
-limit = 3750
+MAX_TOKENS_PER_CHUNK = 3500
 
 # Initialize APIs and keys
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -19,7 +24,7 @@ index_name = "my-podcast-index"
 
 # Initialize the tokenizer
 def count_tokens(text):
-    encoding = tiktoken.get_encoding("gpt2")
+    encoding = tiktoken.get_encoding("cl100k_base")
     num_tokens = len(encoding.encode(text))
     return num_tokens
 
@@ -55,7 +60,7 @@ def store_embeddings_in_pinecone(embeds, chunks):
     meta = [{'text': line} for line in chunks]
     to_upsert = zip(ids_batch, embeds, meta)
     index.upsert(vectors=list(to_upsert))
-    logger.info("Embeddings stored in Pinecone index '%s'.", index_name)
+    #logger.info("Embeddings stored in Pinecone index '%s'.", index_name)
 
 # TODO: Store the embedding and pinecone storage details 
 # Avoid calling the embedding generation and storage twice
@@ -106,28 +111,19 @@ def retrieve(query, index):
     ]
     # build our prompt with the retrieved contexts included
     prompt_start = (
-        "Answer the question based on the context below.\n\n"+
+        "Answer the question based on below context.\n"+
         "Context:\n"
     )
     prompt_end = (
-        f"\n\nQuestion: {query}\nAnswer:"
+        f"\nQuestion: {query}\nAnswer:"
     )
-
-    # append contexts until hitting limit
-    for i in range(len(contexts)):
-        if len("\n\n---\n\n".join(contexts[:i])) >= limit:
-            prompt = (
+    prompt = (
                 prompt_start +
-                "\n\n---\n\n".join(contexts[:i-1]) +
+                "\n---\n".join(contexts) +
                 prompt_end
             )
-            break
-        elif i == len(contexts)-1:
-            prompt = (
-                prompt_start +
-                "\n\n---\n\n".join(contexts) +
-                prompt_end
-            )
+    # TODO: you need to make sure this final prompt, which includes user query 
+     #      is smaller than 4097 (complete.create API limit) - 400(reserved for output) 
     return prompt
 
 
@@ -151,16 +147,16 @@ def main():
     chunks, embeds = get_or_create_embeddings()
 
     index = pinecone.Index(index_name=index_name)
-
+    print("Enter your query (or type 'quit' to exit): ")
     while True:
         try:
-            user_query = input("Enter your query (or type 'quit' to exit): ")
+            user_query = input("Q: ")
             if user_query.lower() == 'quit':
                 print("Exiting...")
                 break
 
             answer = get_answer_from_generative_model(user_query, index)
-            print("Answer:", answer)
+            print("A:", answer)
 
         except KeyboardInterrupt:
             print("\nExiting...")
