@@ -1,3 +1,4 @@
+- Try the lammaIndex vs langchain
 - It lacks the context, needs to use langchain by now
 - Add final summary from these list of summary by using better model
 - https://github.com/openai/openai-cookbook/blob/3115683f14b3ed9570df01d721a2b01be6b0b066/examples/How_to_call_functions_for_knowledge_retrieval.ipynb
